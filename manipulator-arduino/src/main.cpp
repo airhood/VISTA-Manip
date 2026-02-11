@@ -11,9 +11,15 @@
   #define DEBUG_SERIAL Serial
 #endif
 
+
+// #define ENABLE_DYNAMIXEL
+
+
+void parseSerialCommand();
+
+
 const uint8_t NUM_SERVOS = 6;
 
-const uint8_t DXL_BROADCAST_ID = 254;
 const float DXL_PROTOCOL_VERSION = 2.0;
 const uint8_t NUM_DXL = 6;
 const uint8_t DXL_ID_LIST[NUM_DXL] = {1,2,3,4,5,6};
@@ -48,9 +54,11 @@ int32_t servo_positions[NUM_SERVOS] = {1024, 1024, 1024, 1024, 1024, 1024}; // 0
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, LOW);
 
-  DEBUG_SERIAL.begin(115200);
+  Serial.begin(115200);
 
+#ifdef ENABLE_DYNAMIXEL
   dxl.begin(57600);
   dxl.setPortProtocolVersion(DXL_PROTOCOL_VERSION);
 
@@ -100,13 +108,17 @@ void setup() {
     sw_infos.xel_count++;
   }
   sw_infos.is_info_changed = true;
+#endif
 }
 
 void loop() {
   if (Serial.available()) {
     parseSerialCommand();
+    // clear leftover buffer
+    while (Serial.available()) Serial.read();
   }
 
+#ifdef ENABLE_DYNAMIXEL
   static uint32_t tick_count = 0;
   uint8_t recv_cnt;
 
@@ -116,22 +128,22 @@ void loop() {
 
   sw_infos.is_info_changed = true;
 
-  DEBUG_SERIAL.print("\n>>>>>> Manipulator Servo Instruction : ");
-  DEBUG_SERIAL.println(tick_count++);
+  Serial.print("\n>>>>>> Manipulator Servo Instruction : ");
+  Serial.println(tick_count++);
 
   if (dxl.syncWrite(&sw_infos) == true) {
-    DEBUG_SERIAL.println("[SyncWrite] Success");
+    Serial.println("[SyncWrite] Success");
     for (int i = 0; i < sw_infos.xel_count; i++) {
-      DEBUG_SERIAL.print("  ID: ");
-      DEBUG_SERIAL.println(sw_infos.p_xels[i].id);
-      DEBUG_SERIAL.print("\t Goal Position: ");
-      DEBUG_SERIAL.println(sw_data[i].goal_position);
+      Serial.print("  ID: ");
+      Serial.println(sw_infos.p_xels[i].id);
+      Serial.print("\t Goal Position: ");
+      Serial.println(sw_data[i].goal_position);
     }
   } else {
-    DEBUG_SERIAL.print("[SyncWrite] Fail, Lib error code: ");
-    DEBUG_SERIAL.print(dxl.getLastLibErrCode());
+    Serial.print("[SyncWrite] Fail, Lib error code: ");
+    Serial.print(dxl.getLastLibErrCode());
   }
-  DEBUG_SERIAL.println();
+  Serial.println();
 
   delay(250);
 
@@ -153,15 +165,16 @@ void loop() {
   // }
 
   for (uint8_t i = 0; i < NUM_DXL; i++) {
-    DEBUG_SERIAL.print("ID ");
-    DEBUG_SERIAL.print(DXL_ID_LIST[i]);
-    DEBUG_SERIAL.print(": ");
-    DEBUG_SERIAL.println(dxl.getPresentPosition(DXL_ID_LIST[i]));
+    Serial.print("ID ");
+    Serial.print(DXL_ID_LIST[i]);
+    Serial.print(": ");
+    Serial.println(dxl.getPresentPosition(DXL_ID_LIST[i]));
   }
+  
+  Serial.println("=======================================================");
+#endif
 
-  DEBUG_SERIAL.println("=======================================================");
-
-  digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+  // digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 
   delay(50);
 }
@@ -178,7 +191,7 @@ void parseSerialCommand() {
     uint8_t b = Serial.read();
     switch (state) {
       case 0:
-        if (b = 0xFF) state = 1;
+        if (b == 0xFF) state = 1;
         break;
       case 1:
         length = b;
@@ -198,8 +211,15 @@ void parseSerialCommand() {
         break;
       case 4:
         if (b == crc) {
-          for (int i = 0; i < NUM_SERVOS; i++) {
-            servo_positions[i] = data[2*i] | (data[2*i+1]<<8);
+          switch (command) {
+            case 0x01:
+              for (int i = 0; i < NUM_SERVOS; i++) {
+                servo_positions[i] = data[2*i] | (data[2*i+1]<<8);
+              }
+              break;
+            case 0xFF:
+              Serial.println("[TEST] Command received");
+              break;
           }
         }
         state = 0;
