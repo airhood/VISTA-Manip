@@ -1,21 +1,29 @@
+from raspberry_utils.uart import UART
 import serial
 import struct
+from typing import Sequence
 
-ser = serial.Serial('/dev/ttyACM0', 115200, timeout=1)
+uart = UART(serial.Serial('/dev/ttyACM0', 115200, timeout=1))
 
 COMMAND_SET_SERVO_POS = 0x01
 COMMAND_TEST = 0xFF
 
-def sendServoPositions(servo_positions):
-    data = b''.join(struct.pack('<H', p) for p in servo_positions)
-    sendSerialCommand(COMMAND_SET_SERVO_POS, data)
+def sendCommand(command: int, data: bytes) -> None:
+    uart.sendSerialCommand(command, data)
 
-# data must be in binary format
-def sendSerialCommand(command, data):
-    length = len(data) + 1
-    crc = command
-    for b in data:
-        crc ^= b
+def sendServoPositions(servo_positions: Sequence[int]) -> None:
+    data = b''.join(struct.pack('<H', p) for p in servo_positions)
+    uart.sendSerialCommand(COMMAND_SET_SERVO_POS, data)
+
+async def test() -> bool:
+    await uart.sendSerialCommand(COMMAND_TEST, b'')
+
+    command, data = await uart.receiveResponse(
+        timeout=1.0,
+        mode="reliable"
+    )
+
+    if command == COMMAND_TEST:
+        return True
     
-    packet = bytes([0xFF, length, command]) + data + bytes([crc])
-    ser.write(packet)
+    return False
