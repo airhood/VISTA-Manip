@@ -8,15 +8,15 @@ uart = UART(serial.Serial('/dev/ttyACM0', 115200, timeout=1))
 COMMAND_SET_SERVO_POS = 0x01
 COMMAND_TEST = 0xFF
 
-def sendCommand(command: int, data: bytes) -> None:
-    uart.sendSerialCommand(command, data)
+async def sendPacket(command: int, data: bytes):
+    await uart.sendSerialPacket(command, data)
 
-def sendServoPositions(servo_positions: Sequence[int]) -> None:
+async def sendServoPositions(servo_positions: Sequence[int]):
     data = b''.join(struct.pack('<H', p) for p in servo_positions)
-    uart.sendSerialCommand(COMMAND_SET_SERVO_POS, data)
+    await uart.sendSerialPacket(COMMAND_SET_SERVO_POS, data)
 
-async def test() -> bool:
-    await uart.sendSerialCommand(COMMAND_TEST, b'')
+async def test():
+    await uart.sendSerialPacket(COMMAND_TEST, b'test')
 
     command, data = await uart.receiveResponse(
         timeout=1.0,

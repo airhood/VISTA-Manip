@@ -15,7 +15,8 @@
 // #define ENABLE_DYNAMIXEL
 
 
-void parseSerialCommand();
+void parseSerialPacket();
+void sendSerialPacket(uint8_t command, const uint8_t* data, uint8_t data_len);
 
 
 const uint8_t NUM_SERVOS = 6;
@@ -113,7 +114,7 @@ void setup() {
 
 void loop() {
   if (Serial.available()) {
-    parseSerialCommand();
+    parseSerialPacket();
     // clear leftover buffer
     while (Serial.available()) Serial.read();
   }
@@ -179,7 +180,9 @@ void loop() {
   delay(50);
 }
 
-void parseSerialCommand() {
+void parseSerialPacket() {
+  digitalWrite(LED_BUILTIN, HIGH);
+
   static uint8_t state = 0;
   static uint8_t length = 0;
   static uint8_t command = 0;
@@ -218,7 +221,11 @@ void parseSerialCommand() {
               }
               break;
             case 0xFF:
-              Serial.println("[TEST] Command received");
+              {
+                digitalWrite(LED_BUILTIN, HIGH);
+                uint8_t OK = 0x01;
+                sendSerialPacket(0xFF, &OK, 1);
+              }
               break;
           }
         }
@@ -226,4 +233,20 @@ void parseSerialCommand() {
         break;
     }
   }
+}
+
+void sendSerialPacket(uint8_t command, const uint8_t* data, uint8_t data_len) {
+  uint8_t length = 1 + data_len;
+  uint8_t crc = command;
+
+  Serial.write(0xFF);
+  Serial.write(length);
+  Serial.write(command);
+
+  for (uint8_t i = 0; i < data_len; i++) {
+    Serial.write(data[i]);
+    crc ^= data[i];
+  }
+
+  Serial.write(crc);
 }

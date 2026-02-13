@@ -1,12 +1,12 @@
-import arduino_uart
-import time
+import asyncio
+from . import arduino_uart
 
-while True:
-    arduino_uart.sendSerialCommand(arduino_uart.COMMAND_TEST, b"hello world!")
+async def main():
+    test_result = await arduino_uart.test()
+    print(f"'arduino_uart' Test Result: {test_result}")
 
-    if arduino_uart.ser.in_waiting > 0:
-        line = arduino_uart.ser.readline().decode(errors='ignore').strip()
-        if line.startswith("[TEST]"):
-            print("DEBUG:", line)
-
-    time.sleep(0.02)
+if __name__ == "__main__":
+    import time
+    while True:
+        asyncio.run(main())
+        time.sleep(0.05)
