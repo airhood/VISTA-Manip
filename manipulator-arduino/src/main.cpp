@@ -57,7 +57,7 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW);
 
-  Serial.begin(115200);
+  soft_serial.begin(115200);
 
 #ifdef ENABLE_DYNAMIXEL
   dxl.begin(57600);
@@ -67,16 +67,16 @@ void setup() {
     uint8_t id = DXL_ID_LIST[i];
 
     if (dxl.ping(id)) {
-      Serial.print("Dynamixel ID ");
-      Serial.print(id);
-      Serial.println(" found!");
+      soft_serial.print("Dynamixel ID ");
+      soft_serial.print(id);
+      soft_serial.println(" found!");
 
       dxl.torqueOff(id);
       dxl.setOperatingMode(id, OP_POSITION);
     } else {
-      Serial.print("Dynamixel ID ");
-      Serial.print(id);
-      Serial.println(" not responding!");
+      soft_serial.print("Dynamixel ID ");
+      soft_serial.print(id);
+      soft_serial.println(" not responding!");
     }
   }
   dxl.torqueOn(DXL_BROADCAST_ID);
@@ -113,10 +113,10 @@ void setup() {
 }
 
 void loop() {
-  if (Serial.available()) {
+  if (soft_serial.available()) {
     parseSerialPacket();
     // clear leftover buffer
-    while (Serial.available()) Serial.read();
+    while (soft_serial.available()) soft_serial.read();
   }
 
 #ifdef ENABLE_DYNAMIXEL
@@ -129,60 +129,58 @@ void loop() {
 
   sw_infos.is_info_changed = true;
 
-  Serial.print("\n>>>>>> Manipulator Servo Instruction : ");
-  Serial.println(tick_count++);
+  soft_serial.print("\n>>>>>> Manipulator Servo Instruction : ");
+  soft_serial.println(tick_count++);
 
   if (dxl.syncWrite(&sw_infos) == true) {
-    Serial.println("[SyncWrite] Success");
+    soft_serial.println("[SyncWrite] Success");
     for (int i = 0; i < sw_infos.xel_count; i++) {
-      Serial.print("  ID: ");
-      Serial.println(sw_infos.p_xels[i].id);
-      Serial.print("\t Goal Position: ");
-      Serial.println(sw_data[i].goal_position);
+      soft_serial.print("  ID: ");
+      soft_serial.println(sw_infos.p_xels[i].id);
+      soft_serial.print("\t Goal Position: ");
+      soft_serial.println(sw_data[i].goal_position);
     }
   } else {
-    Serial.print("[SyncWrite] Fail, Lib error code: ");
-    Serial.print(dxl.getLastLibErrCode());
+    soft_serial.print("[SyncWrite] Fail, Lib error code: ");
+    soft_serial.print(dxl.getLastLibErrCode());
   }
-  Serial.println();
+  soft_serial.println();
 
   delay(250);
 
   // recv_cnt = dxl.syncRead(&sr_infos);
   // if(recv_cnt > 0) {
-  //   DEBUG_SERIAL.print("[SyncRead] Success, Received ID Count: ");
-  //   DEBUG_SERIAL.println(recv_cnt);
+  //   soft_serial.print("[SyncRead] Success, Received ID Count: ");
+  //   soft_serial.println(recv_cnt);
   //   for (int i = 0; i < recv_cnt; i++){
-  //     DEBUG_SERIAL.print("  ID: ");
-  //     DEBUG_SERIAL.print(sr_infos.p_xels[i].id);
-  //     DEBUG_SERIAL.print(", Error: ");
-  //     DEBUG_SERIAL.println(sr_infos.p_xels[i].error);
-  //     DEBUG_SERIAL.print("\t Present Position: ");
-  //     DEBUG_SERIAL.println(sr_data[i].present_position);
+  //     soft_serial.print("  ID: ");
+  //     soft_serial.print(sr_infos.p_xels[i].id);
+  //     soft_serial.print(", Error: ");
+  //     soft_serial.println(sr_infos.p_xels[i].error);
+  //     soft_serial.print("\t Present Position: ");
+  //     soft_serial.println(sr_data[i].present_position);
   //   }
   // }else{
-  //   DEBUG_SERIAL.print("[SyncRead] Fail, Lib error code: ");
-  //   DEBUG_SERIAL.println(dxl.getLastLibErrCode());
+  //   soft_serial.print("[SyncRead] Fail, Lib error code: ");
+  //   soft_serial.println(dxl.getLastLibErrCode());
   // }
 
   for (uint8_t i = 0; i < NUM_DXL; i++) {
-    Serial.print("ID ");
-    Serial.print(DXL_ID_LIST[i]);
-    Serial.print(": ");
-    Serial.println(dxl.getPresentPosition(DXL_ID_LIST[i]));
+    soft_serial.print("ID ");
+    soft_serial.print(DXL_ID_LIST[i]);
+    soft_serial.print(": ");
+    soft_serial.println(dxl.getPresentPosition(DXL_ID_LIST[i]));
   }
   
-  Serial.println("=======================================================");
+  soft_serial.println("=======================================================");
 #endif
 
   // digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 
-  delay(50);
+  delay(1);
 }
 
 void parseSerialPacket() {
-  digitalWrite(LED_BUILTIN, HIGH);
-
   static uint8_t state = 0;
   static uint8_t length = 0;
   static uint8_t command = 0;
@@ -190,8 +188,8 @@ void parseSerialPacket() {
   static uint8_t data_idx = 0;
   static uint8_t crc = 0;
 
-  while (Serial.available()) {
-    uint8_t b = Serial.read();
+  while (soft_serial.available()) {
+    uint8_t b = soft_serial.read();
     switch (state) {
       case 0:
         if (b == 0xFF) state = 1;
@@ -239,14 +237,14 @@ void sendSerialPacket(uint8_t command, const uint8_t* data, uint8_t data_len) {
   uint8_t length = 1 + data_len;
   uint8_t crc = command;
 
-  Serial.write(0xFF);
-  Serial.write(length);
-  Serial.write(command);
+  soft_serial.write(0xFF);
+  soft_serial.write(length);
+  soft_serial.write(command);
 
   for (uint8_t i = 0; i < data_len; i++) {
-    Serial.write(data[i]);
+    soft_serial.write(data[i]);
     crc ^= data[i];
   }
 
-  Serial.write(crc);
+  soft_serial.write(crc);
 }

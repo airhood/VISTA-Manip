@@ -9,4 +9,4 @@ if __name__ == "__main__":
     import time
     while True:
         asyncio.run(main())
-        time.sleep(0.05)
+        time.sleep(0.001)

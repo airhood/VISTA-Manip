@@ -2,6 +2,7 @@ from raspberry_utils.uart import UART
 import serial
 import struct
 from typing import Sequence
+import asyncio
 
 uart = UART(serial.Serial('/dev/ttyACM0', 115200, timeout=1))
 
@@ -27,3 +28,12 @@ async def test():
         return True
     
     return False
+
+async def waitForInit():
+    try_count = 0
+    while try_count < 5:
+        test_result = await test()
+        if test_result:
+            break
+
+asyncio.run(waitForInit())
