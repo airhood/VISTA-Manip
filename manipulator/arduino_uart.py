@@ -2,38 +2,29 @@ from raspberry_utils.uart import UART
 import serial
 import struct
 from typing import Sequence
-import asyncio
 
-uart = UART(serial.Serial('/dev/ttyACM0', 115200, timeout=1))
+uart = UART('/dev/ttyACM0', 115200)
 
 COMMAND_SET_SERVO_POS = 0x01
 COMMAND_TEST = 0xFF
 
-async def sendPacket(command: int, data: bytes):
-    await uart.sendSerialPacket(command, data)
+def sendPacket(command: int, data: bytes) -> None:
+    """Send a packet to arduino consisting of a command and data. Non-blocking."""
+    uart.send_packet(command, data)
 
-async def sendServoPositions(servo_positions: Sequence[int]):
-    data = b''.join(struct.pack('<H', p) for p in servo_positions)
-    await uart.sendSerialPacket(COMMAND_SET_SERVO_POS, data)
+def send_servo_positions(positions: Sequence[int]) -> None:
+    """Send servo positions to arduino. Non-blocking."""
+    data = b''.join(struct.pack('<H', p) for p in positions)
+    uart.send_packet(0x01, data)
 
-async def test():
-    await uart.sendSerialPacket(COMMAND_TEST, b'test')
+def test() -> bool:
+    """Send health check to arduino and wait for response. Blocking."""
+    return uart.health_check(timeout=1.0)
 
-    command, data = await uart.receiveResponse(
-        timeout=1.0,
-        mode="reliable"
-    )
-
-    if command == COMMAND_TEST:
-        return True
-    
+def waitForInit() -> bool:
+    for _ in range(5):
+        if test():
+            return True
     return False
 
-async def waitForInit():
-    try_count = 0
-    while try_count < 5:
-        test_result = await test()
-        if test_result:
-            break
-
-asyncio.run(waitForInit())
+waitForInit()

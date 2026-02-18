@@ -1,122 +1,130 @@
-import asyncio
+import threading
+import queue
 import serial
-from typing import Tuple, Optional
+import struct
+import time
+from typing import Tuple, Optional, Sequence
+
 
 class UART:
     MIN_PACKET_SIZE = 4
 
-    def __init__(self, serial: serial.Serial) -> None:
-        self.ser = serial
+    def __init__(self, port: str, baudrate: int = 115200) -> None:
+        self.ser = serial.Serial(port, baudrate)
+        self.send_queue = queue.Queue()
 
-    # data must be in binary format
-    async def sendSerialPacket(self, command: int, data: bytes) -> None:
-        length = len(data) + 1
-        crc = command
-        for b in data:
-            crc ^= b
-        
-        packet = bytes([0xFF, length, command]) + data + bytes([crc])
-        
-        await asyncio.get_event_loop().run_in_executor(
-            None, self.ser.write, packet
-        )
-        await asyncio.get_event_loop().run_in_executor(
-            None, self.ser.flush
-        )
-    
-    async def receiveResponse(self,
-                              timeout: float = 1.0,
-                              mode: str = "reliable" # "reliable" or "realtime"
-                              ) -> Tuple[Optional[int], Optional[bytes]]:
-        loop = asyncio.get_running_loop()
-        start_time = loop.time()
+        self._recv_lock = threading.Lock()
+        self._pending_response: Optional[Tuple[int, bytes]] = None
+        self._response_event = threading.Event()
 
-        self.ser.timeout = timeout
+        self._send_worker = threading.Thread(target=self._send_loop, daemon=True)
+        self._recv_worker = threading.Thread(target=self._recv_loop, daemon=True)
+        self._send_worker.start()
+        self._recv_worker.start()
 
-        if mode == "reliable":
-            buffer = bytearray()
+    def _send_loop(self) -> None:
+        while True:
+            packet = self.send_queue.get()
+            try:
+                self.ser.write(packet)
+                self.ser.flush()
+            except serial.SerialException:
+                pass
 
-            while loop.time() - start_time < timeout:
-                chunk = await loop.run_in_executor(None, self.ser.read, self.ser.in_waiting or 1)
+    def _recv_loop(self) -> None:
+        buffer = bytearray()
+        while True:
+            try:
+                chunk = self.ser.read(self.ser.in_waiting or 1)
+            except serial.SerialException:
+                time.sleep(0.001)
+                continue
 
-                buffer.extend(chunk)
+            buffer.extend(chunk)
 
-                while True:
-                    if len(buffer) < self.MIN_PACKET_SIZE:
-                        break
+            while True:
+                if len(buffer) < self.MIN_PACKET_SIZE:
+                    break
 
-                    if buffer[0] != 0xFF:
-                        buffer.pop(0)
-                        continue
-
-                    length = buffer[1]
-                    total_size = 1 + 1 + length + 1
-
-                    if len(buffer) < total_size:
-                        break
-
-                    packet = buffer[:total_size]
-
-                    command = packet[2]
-                    data = packet[3:-1]
-                    crc = packet[-1]
-
-                    calculated_crc = command
-                    for b in data:
-                        calculated_crc ^= b
-                    
-                    if crc == calculated_crc:
-                        del buffer[:total_size] # remove parsed command buffer
-                        return command, data
-                    else:
-                        buffer.pop(0) # resync with offset 1
-                        continue
-
-            return None, None
-        elif mode == "realtime":
-            while loop.time() - start_time < timeout:
-                if self.ser.in_waiting < self.MIN_PACKET_SIZE:
-                    await asyncio.sleep(0.001) # 1ms
+                if buffer[0] != 0xFF:
+                    buffer.pop(0)
                     continue
 
-                header = await loop.run_in_executor(None, self.ser.read, 1)
-                if header != b'\xFF':
-                    continue
+                length = buffer[1]
+                total_size = 1 + 1 + length + 1  # 0xFF + length + command+data + crc
 
-                length_byte = await loop.run_in_executor(None, self.ser.read, 1)
-                if not length_byte:
-                    continue
-                length = length_byte[0]
+                if len(buffer) < total_size:
+                    break
 
-                command_byte = await loop.run_in_executor(None, self.ser.read, 1)
-                if not command_byte:
-                    continue
-                command = command_byte[0]
-
-                data = await loop.run_in_executor(None, self.ser.read, length - 1)
-                if len(data) != length - 1:
-                    continue
-
-                crc_byte = await loop.run_in_executor(None, self.ser.read, 1)
-                if not crc_byte:
-                    continue
-                crc = crc_byte[0]
+                packet = buffer[:total_size]
+                command = packet[2]
+                data = bytes(packet[3:-1])
+                crc = packet[-1]
 
                 calculated_crc = command
                 for b in data:
                     calculated_crc ^= b
 
                 if crc == calculated_crc:
-                    return command, data
-                
-                await asyncio.sleep(0.001)
+                    del buffer[:total_size]
+                    with self._recv_lock:
+                        self._pending_response = (command, data)
+                        self._response_event.set()
+                else:
+                    buffer.pop(0)  # resync
+                    continue
 
-            return None, None
-        
-        else:
-            raise ValueError("receiveResponse mode must be 'reliable' or 'realtime'")
+    def _make_packet(self, command: int, data: bytes) -> bytes:
+        length = len(data) + 1
+        crc = command
+        for b in data:
+            crc ^= b
+        return bytes([0xFF, length, command]) + data + bytes([crc])
 
-    
+    def send_packet(self, command: int, data: bytes) -> None:
+        """Send a packet consisting of a command and data. Non-blocking."""
+        self.send_queue.put(self._make_packet(command, data))
+
+    def send_servo_positions(self, positions: Sequence[int]) -> None:
+        """Send servo positions. Non-blocking."""
+        data = b''.join(struct.pack('<H', p) for p in positions)
+        self.send_packet(0x01, data)
+
+    def receive_response(self, timeout: float = 1.0) -> Tuple[Optional[int], Optional[bytes]]:
+        """
+        Wait for a response packet from Arduino.
+        Blocking — call from a separate thread or infrequently.
+        Returns (command, data) or (None, None) on timeout.
+        """
+        self._response_event.clear()
+        with self._recv_lock:
+            self._pending_response = None
+
+        if self._response_event.wait(timeout=timeout):
+            with self._recv_lock:
+                result = self._pending_response
+                self._pending_response = None
+            return result if result is not None else (None, None)
+
+        return None, None
+
+    def health_check(self, timeout: float = 1.0) -> bool:
+        """Send health check and wait for response. Blocking."""
+        self._response_event.clear()
+        with self._recv_lock:
+            self._pending_response = None
+
+        self.send_packet(0xFF, b'\x01')
+
+        if self._response_event.wait(timeout=timeout):
+            with self._recv_lock:
+                result = self._pending_response
+                self._pending_response = None
+            if result is not None:
+                command, _ = result
+                return command == 0xFF
+        return False
+
     def close(self) -> None:
         if self.ser and self.ser.is_open:
             self.ser.close()

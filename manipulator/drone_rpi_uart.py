@@ -1,33 +1,22 @@
 from raspberry_utils.uart import UART
 import serial
-import struct
-import asyncio
 
-uart = UART(serial.Serial('/dev/ttyACM1', 115200, timeout=1))
+uart = UART('/dev/ttyACM0', 115200)
 
 COMMAND_TEST = 0xFF
 
-async def sendCommand(command: int, data: bytes):
-    uart.sendSerialPacket(command, data)
+def sendPacket(command: int, data: bytes) -> None:
+    """Send a packet to drone rpi consisting of a command and data. Non-blocking."""
+    uart.send_packet(command, data)
 
-async def test():
-    await uart.sendSerialPacket(COMMAND_TEST, b'test')
+def test() -> bool:
+    """Send health check to arduino and wait for response. Blocking."""
+    return uart.health_check(timeout=1.0)
 
-    command, data = await uart.receiveResponse(
-        tinmeout=1.0,
-        mode="reliable"
-    )
-
-    if command == COMMAND_TEST:
-        return True
-    
+def waitForInit() -> bool:
+    for _ in range(5):
+        if test():
+            return True
     return False
 
-async def waitForInit():
-    try_count = 0
-    while try_count < 5:
-        test_result = await test()
-        if test_result:
-            break
-
-asyncio.run(waitForInit())
+waitForInit()
