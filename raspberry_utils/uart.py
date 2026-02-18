@@ -85,11 +85,6 @@ class UART:
         """Send a packet consisting of a command and data. Non-blocking."""
         self.send_queue.put(self._make_packet(command, data))
 
-    def send_servo_positions(self, positions: Sequence[int]) -> None:
-        """Send servo positions. Non-blocking."""
-        data = b''.join(struct.pack('<H', p) for p in positions)
-        self.send_packet(0x01, data)
-
     def receive_response(self, timeout: float = 1.0) -> Tuple[Optional[int], Optional[bytes]]:
         """
         Wait for a response packet from Arduino.
@@ -121,8 +116,8 @@ class UART:
                 result = self._pending_response
                 self._pending_response = None
             if result is not None:
-                command, _ = result
-                return command == 0xFF
+                command, data = result
+                return command == 0xFF and data == b'\x01'
         return False
 
     def close(self) -> None:
