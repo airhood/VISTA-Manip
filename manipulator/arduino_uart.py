@@ -1,5 +1,4 @@
 from raspberry_utils.uart import UART
-import serial
 import struct
 from typing import Sequence
 
@@ -7,6 +6,9 @@ uart = UART('/dev/ttyACM0', 115200)
 
 COMMAND_SET_SERVO_POS = 0x01
 COMMAND_TEST = 0xFF
+
+uart.register_queue(COMMAND_SET_SERVO_POS)
+uart.register_queue(COMMAND_TEST)
 
 def sendPacket(command: int, data: bytes) -> None:
     """Send a packet to arduino consisting of a command and data. Non-blocking."""

@@ -16,7 +16,6 @@ class UART:
         self._recv_queues: Dict[int, queue.Queue] = {}
         self._handlers: Dict[int, Callable[[bytes], None]] = {}
         self._threaded_handlers: Dict[int, Callable[[bytes], None]] = {}
-        self._sync_locks: Dict[int, threading.Lock] = {}
 
         self._send_worker = threading.Thread(target=self._send_loop, daemon=True)
         self._recv_worker = threading.Thread(target=self._recv_loop, daemon=True)
@@ -86,15 +85,9 @@ class UART:
                 handler(data)
         return loop
 
-    def register_queue(self, command: int, sync: bool = False) -> None:
-        """
-        Register a command to be buffered. Retrieve with receive_response().
-        sync=True: send_and_receive() ensures request-response are paired (no overlap).
-        sync=False: send and receive are independent.
-        """
+    def register_queue(self, command: int) -> None:
+        """Register a command to be buffered. Retrieve with receive_response()."""
         self._recv_queues[command] = queue.Queue()
-        if sync:
-            self._sync_locks[command] = threading.Lock()
 
     def register_handler(self, command: int, handler: Callable[[bytes], None], enable_threading: bool = False) -> None:
         """
@@ -118,8 +111,7 @@ class UART:
         return bytes([0xFF, length, command]) + data + bytes([crc])
 
     def send_packet(self, command: int, data: bytes) -> None:
-        """Send a packet consisting of a command and data. Non-blocking.
-        sync=True option will not be applied to this function!"""
+        """Fire-and-forget. Non-blocking."""
         self.send_queue.put(self._make_packet(command, data))
 
     def send_servo_positions(self, positions: Sequence[int]) -> None:
@@ -129,8 +121,8 @@ class UART:
 
     def receive_response(self, command: int, timeout: float = 1.0) -> Optional[bytes]:
         """
-        Wait for a buffered response for the given command. Blocking.
-        Returns data or None on timeout.
+        Wait for a buffered response for the given command.
+        Blocking. Returns data or None on timeout.
         Must have called register_queue(command) first.
         """
         q = self._recv_queues.get(command)
@@ -140,32 +132,12 @@ class UART:
             return q.get(timeout=timeout)
         except queue.Empty:
             return None
-        
-    def send_and_receive(self, command: int, data: bytes, timeout: float = 1.0) -> Optional[bytes]:
-        """
-        Send a packet and wait for response.Blocking.
-        Only available for commands registered with sync=True.
-        Ensures no overlapping requests for the same command.
-        """
-        lock = self._sync_locks.get(command)
-        if lock is None:
-            raise ValueError(f"Command 0x{command:02X} is not registered as sync. Call register_queue(command, sync=True) first.")
-
-        with lock:
-            q = self._recv_queues[command]
-            while not q.empty():
-                q.get_nowait()
-
-            self.send_packet(command, data)
-            try:
-                return q.get(timeout=timeout)
-            except queue.Empty:
-                return None
 
     def health_check(self, timeout: float = 1.0) -> bool:
         """Send health check and wait for response. Blocking."""
         self.send_packet(0xFF, b'\x01')
         data = self.receive_response(0xFF, timeout=timeout)
+        print(f"data: {data}")
         return data == b'\x01'
 
     def close(self) -> None:

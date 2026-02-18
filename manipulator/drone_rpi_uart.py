@@ -1,9 +1,10 @@
 from raspberry_utils.uart import UART
-import serial
 
 uart = UART('/dev/ttyACM0', 115200)
 
 COMMAND_TEST = 0xFF
+
+uart.register_queue(COMMAND_TEST)
 
 def sendPacket(command: int, data: bytes) -> None:
     """Send a packet to drone rpi consisting of a command and data. Non-blocking."""
