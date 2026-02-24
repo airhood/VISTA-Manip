@@ -1,14 +1,13 @@
 from raspberry_utils.uart import UART
+from raspberry_utils.system_status import SystemStatus, system_status
 import struct
 from typing import Sequence
 
 uart = UART('/dev/ttyACM0', 115200)
 
 COMMAND_SET_SERVO_POS = 0x01
+COMMAND_SYSTEM_STATUS_UPDATE = 0x02
 COMMAND_TEST = 0xFF
-
-uart.register_queue(COMMAND_SET_SERVO_POS)
-uart.register_queue(COMMAND_TEST)
 
 def sendPacket(command: int, data: bytes) -> None:
     """Send a packet to arduino consisting of a command and data. Non-blocking."""
@@ -23,10 +22,20 @@ def test() -> bool:
     """Send health check to arduino and wait for response. Blocking."""
     return uart.health_check(timeout=1.0)
 
-def waitForInit() -> bool:
+def waitForUARTInit() -> bool:
     for _ in range(5):
         if test():
             return True
     return False
 
-waitForInit()
+def onSystemStatusUpdate(data: bytes):
+    global system_status
+    system_status = SystemStatus.from_bytes(data)
+    print(f"System Status: {system_status}")
+
+def init():
+    uart.register_queue(COMMAND_SET_SERVO_POS)
+    uart.register_handler(COMMAND_SYSTEM_STATUS_UPDATE, onSystemStatusUpdate)
+    uart.register_queue(COMMAND_TEST)
+
+    return waitForUARTInit()

@@ -66,10 +66,10 @@ using namespace ControlTableItem;
 int32_t servo_positions[NUM_SERVOS] = {1024, 1024, 1024, 1024, 1024, 1024}; // 0 ~ 4095
 
 
-const int RED_PIN    = 13;
-const int YELLOW_PIN = 12;
-const int GREEN_PIN  = 11;
-const int BLUE_PIN   = 10;
+const int RED_PIN    = 10;
+const int YELLOW_PIN = 11;
+const int GREEN_PIN  = 12;
+const int BLUE_PIN   = 13;
 
 const int LED_PINS[4] = { RED_PIN, YELLOW_PIN, GREEN_PIN, BLUE_PIN };
 
@@ -294,7 +294,11 @@ void handleCommand(uint8_t command, uint8_t* data, uint8_t data_len) {
       break;
     case 0xFE: // health check reply
       health_check_request = 0;
+      RPiUartStatus prev = system_status.rpi_uart;
       system_status.rpi_uart = UART_CONNECTED;
+      if (prev != system_status.rpi_uart) {
+        onSystemStatusUpdate();
+      }
       break;
     case 0xFF: // health check request
       {
@@ -350,12 +354,16 @@ void tickStatusLED() {
 void tickHealthCheck() {
   unsigned long now = millis();
   if (now - health_check_request > HEALTH_CHECK_TIMEOUT_MS) {
+    RPiUartStatus prev = system_status.rpi_uart;
     system_status.rpi_uart = UART_DISCONNECTED;
+    if (prev != system_status.rpi_uart) {
+      onSystemStatusUpdate();
+    }
   }
 }
 
 void onSystemStatusUpdate() {
-
+  sendSerialPacket(0x02, (uint8_t*)&system_status, sizeof(SystemStatus_t));
 }
 
 #endif
