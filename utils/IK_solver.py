@@ -91,15 +91,31 @@ class IKSolver:
         best_q = None
         best_error = float('inf')
 
-        for _ in range(30):
+        # Joint[0]: target 방위각으로 초기값 고정
+        q0_j0 = np.arctan2(z, -x)
+
+        # 나머지 joint 초기값 전략: zeros + 넓은 랜덤 조합
+        q1_seeds = [
+            np.zeros(4),
+            np.array([-np.pi/4, -np.pi/4,  np.pi/4, 0]),
+            np.array([ np.pi/4, -np.pi/4, -np.pi/4, 0]),
+            np.array([ 0,       -np.pi/2,  np.pi/4, 0]),
+            np.array([ 0,        np.pi/4, -np.pi/4, 0]),
+        ]
+
+        for i in range(50):
+            q0 = np.zeros(5)
+            q0[0] = q0_j0
+            if i < len(q1_seeds):
+                q0[1:] = q1_seeds[i]
+            else:
+                q0[1:] = np.random.uniform(-np.pi/2, np.pi/2, 4)
+
             sol = self.robot.ik_LM(
                 T_target,
                 joint_limits=True,
                 mask=[1, 1, 1, 0, 0, 0],
-                q0=np.random.uniform(
-                    [b[0] for b in self.joint_limits],
-                    [b[1] for b in self.joint_limits]
-                )
+                q0=q0
             )
             q_rad = sol[0]
             fk_pos = self.robot.fkine(q_rad).t
@@ -107,6 +123,8 @@ class IKSolver:
             if error < best_error:
                 best_error = error
                 best_q = q_rad
+            if best_error < 1e-3:
+                break
 
         if best_error < 2e-3:
             return np.degrees(best_q).tolist()
