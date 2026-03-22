@@ -1,7 +1,8 @@
 from raspberry_utils.uart import UART
 
-uart = UART('/dev/ttyACM0', 115200)
+uart = UART('/dev/ttyAMA3', 115200)
 
+COMMAND_DEBUG_PRINT = 0x10
 COMMAND_TEST = 0xFF
 
 def send_packet(command: int, data: bytes) -> None:
@@ -18,7 +19,11 @@ def wait_for_UART_init() -> bool:
             return True
     return False
 
+def onDebugPrint(data: bytes):
+    print(f"[Arduino] {data.decode('ascii', errors='replace')}")
+
 def init():
+    uart.register_handler(COMMAND_DEBUG_PRINT, onDebugPrint)
     uart.register_queue(COMMAND_TEST)
 
     return wait_for_UART_init()

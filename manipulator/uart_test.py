@@ -5,6 +5,8 @@ def main():
     print(f"'arduino_uart' Test Result: {test_result}")
 
 if __name__ == "__main__":
+    arduino_uart.init()
+
     import time
     while True:
         main()

@@ -13,6 +13,8 @@ def main():
     return latency_ms
 
 if __name__ == "__main__":
+    arduino_uart.init()
+
     latencies = []
 
     for i in range(5):

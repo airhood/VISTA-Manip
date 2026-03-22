@@ -1,8 +1,9 @@
 import RPi.GPIO as GPIO
 import atexit
-import arduino_uart
-import drone_rpi_uart
-import status_led
+import threading
+from . import arduino_uart
+from . import drone_rpi_uart
+from . import status_led
 
 def initSystem():
     GPIO.setmode(GPIO.BOARD)
@@ -14,6 +15,8 @@ def initSystem():
 
 def main():
     initSystem()
+
+    threading.Event().wait()
 
 if __name__ == "__main__":
     main()

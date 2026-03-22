@@ -29,6 +29,7 @@ void setStatusLED(StatusLED led, LEDState state, int blink_interval_ms = 500);
 void tickStatusLED();
 void tickHealthCheck();
 void onSystemStatusUpdate();
+void debugPrint(const char* fmt, ...);
 
 
 const uint8_t NUM_SERVOS = 6;
@@ -79,7 +80,7 @@ LEDState green_state;
 LEDState blue_state;
 
 LEDState led_state[4] = { OFF, OFF, OFF, OFF };
-int led_blink_interval[4] = { 0, 0, 0, 0 };
+unsigned long led_blink_interval[4] = { 0, 0, 0, 0 };
 unsigned long led_last_toggle[4] = { 0, 0, 0, 0 };
 bool led_blink_on[4] = { false, false, false, false };
 
@@ -101,7 +102,7 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW);
 
-  SERIAL.begin(115200);
+  SERIAL.begin(9600);
 
   pinMode(RED_PIN, OUTPUT);
   pinMode(YELLOW_PIN, OUTPUT);
@@ -121,16 +122,16 @@ void setup() {
     uint8_t id = DXL_ID_LIST[i];
 
     if (dxl.ping(id)) {
-      SERIAL.print("Dynamixel ID ");
-      SERIAL.print(id);
-      SERIAL.println(" found!");
+      debugPrint("Dynamixel ID ");
+      debugPrint("%d", id);
+      debugPrint(" found!\n");
 
       dxl.torqueOff(id);
       dxl.setOperatingMode(id, OP_POSITION);
     } else {
-      SERIAL.print("Dynamixel ID ");
-      SERIAL.print(id);
-      SERIAL.println(" not responding!");
+      debugPrint("Dynamixel ID ");
+      debugPrint("%d", id);
+      debugPrint(" not responding!\n");
     }
   }
   dxl.torqueOn(DXL_BROADCAST_ID);
@@ -166,72 +167,83 @@ void setup() {
 #endif
 }
 
+uint16_t dxl_tick = 0;
+
 void loop() {
+  Serial.println("hello world\n");
+  SERIAL.println("hello world\n");
+  debugPrint("hello world!\n");
+
   if (SERIAL.available()) {
+    Serial.println("try parse");
     parseSerialPacket();
   }
 
   tickStatusLED();
 
 #ifdef ENABLE_DYNAMIXEL
-  static uint32_t tick_count = 0;
-  uint8_t recv_cnt;
+  if (dxl_tick == 250) {
+    dxl_tick = 0;
 
-  for (int i = 0; i < NUM_DXL; i++) {
-    sw_data[i].goal_position = servo_positions[i];
-  }
-
-  sw_infos.is_info_changed = true;
-
-  SERIAL.print("\n>>>>>> Manipulator Servo Instruction : ");
-  SERIAL.println(tick_count++);
-
-  if (dxl.syncWrite(&sw_infos) == true) {
-    SERIAL.println("[SyncWrite] Success");
-    for (int i = 0; i < sw_infos.xel_count; i++) {
-      SERIAL.print("  ID: ");
-      SERIAL.println(sw_infos.p_xels[i].id);
-      SERIAL.print("\t Goal Position: ");
-      SERIAL.println(sw_data[i].goal_position);
-    }
-  } else {
-    SERIAL.print("[SyncWrite] Fail, Lib error code: ");
-    SERIAL.print(dxl.getLastLibErrCode());
-  }
-  SERIAL.println();
-
-  delay(250);
-
-  // recv_cnt = dxl.syncRead(&sr_infos);
-  // if(recv_cnt > 0) {
-  //   SERIAL.print("[SyncRead] Success, Received ID Count: ");
-  //   SERIAL.println(recv_cnt);
-  //   for (int i = 0; i < recv_cnt; i++){
-  //     SERIAL.print("  ID: ");
-  //     SERIAL.print(sr_infos.p_xels[i].id);
-  //     SERIAL.print(", Error: ");
-  //     SERIAL.println(sr_infos.p_xels[i].error);
-  //     SERIAL.print("\t Present Position: ");
-  //     SERIAL.println(sr_data[i].present_position);
-  //   }
-  // }else{
-  //   SERIAL.print("[SyncRead] Fail, Lib error code: ");
-  //   SERIAL.println(dxl.getLastLibErrCode());
-  // }
-
-  for (uint8_t i = 0; i < NUM_DXL; i++) {
-    SERIAL.print("ID ");
-    SERIAL.print(DXL_ID_LIST[i]);
-    SERIAL.print(": ");
-    SERIAL.println(dxl.getPresentPosition(DXL_ID_LIST[i]));
-  }
+    static uint32_t tick_count = 0;
+    uint8_t recv_cnt;
   
-  SERIAL.println("=======================================================");
+    for (int i = 0; i < NUM_DXL; i++) {
+      sw_data[i].goal_position = servo_positions[i];
+    }
+  
+    sw_infos.is_info_changed = true;
+  
+    debugPrint("\n>>>>>> Manipulator Servo Instruction : ");
+    debugPrint("%ld\n", tick_count++);
+  
+    if (dxl.syncWrite(&sw_infos) == true) {
+      debugPrint("[SyncWrite] Success\n");
+      for (int i = 0; i < sw_infos.xel_count; i++) {
+        debugPrint("  ID: ");
+        debugPrint("%d\n", sw_infos.p_xels[i].id);
+        debugPrint("\t Goal Position: ");
+        debugPrint("%ld\n", sw_data[i].goal_position);
+      }
+    } else {
+      debugPrint("[SyncWrite] Fail, Lib error code: ");
+      debugPrint("%ld", dxl.getLastLibErrCode());
+    }
+    debugPrint("\n");
+  
+    // recv_cnt = dxl.syncRead(&sr_infos);
+    // if(recv_cnt > 0) {
+    //   SERIAL.print("[SyncRead] Success, Received ID Count: ");
+    //   SERIAL.println(recv_cnt);
+    //   for (int i = 0; i < recv_cnt; i++){
+    //     SERIAL.print("  ID: ");
+    //     SERIAL.print(sr_infos.p_xels[i].id);
+    //     SERIAL.print(", Error: ");
+    //     SERIAL.println(sr_infos.p_xels[i].error);
+    //     SERIAL.print("\t Present Position: ");
+    //     SERIAL.println(sr_data[i].present_position);
+    //   }
+    // }else{
+    //   SERIAL.print("[SyncRead] Fail, Lib error code: ");
+    //   SERIAL.println(dxl.getLastLibErrCode());
+    // }
+  
+    for (uint8_t i = 0; i < NUM_DXL; i++) {
+      debugPrint("ID ");
+      debugPrint("%d", DXL_ID_LIST[i]);
+      debugPrint(": ");
+      debugPrint("%d\n", dxl.getPresentPosition(DXL_ID_LIST[i]));
+    }
+    
+    debugPrint("=======================================================\n");
+  }
 #endif
 
   // digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 
   delay(1);
+  
+  dxl_tick++;
 }
 
 void parseSerialPacket() {
@@ -284,20 +296,19 @@ void handleCommand(uint8_t command, uint8_t* data, uint8_t data_len) {
         servo_positions[i] = data[2*i] | (data[2*i+1]<<8);
       }
       break;
-    case 0x02: // system status fetch
-      sendSerialPacket(0x02, (uint8_t*)&system_status, sizeof(SystemStatus_t));
-      break;
     case 0x03: // system status update request
       {
         uint8_t status = data[0];
       }
       break;
     case 0xFE: // health check reply
-      health_check_request = 0;
-      RPiUartStatus prev = system_status.rpi_uart;
-      system_status.rpi_uart = UART_CONNECTED;
-      if (prev != system_status.rpi_uart) {
-        onSystemStatusUpdate();
+      {
+        health_check_request = 0;
+        RPiUartStatus prev = system_status.rpi_uart;
+        system_status.rpi_uart = UART_CONNECTED;
+        if (prev != system_status.rpi_uart) {
+          onSystemStatusUpdate();
+        }
       }
       break;
     case 0xFF: // health check request
@@ -327,7 +338,7 @@ void sendSerialPacket(uint8_t command, const uint8_t* data, uint8_t data_len) {
   SERIAL.write(crc);
 }
 
-void setStatusLED(StatusLED led, LEDState state, int blink_interval_ms = 500) {
+void setStatusLED(StatusLED led, LEDState state, int blink_interval_ms) {
   led_state[led] = state;
   if (state == BLINK) {
     led_blink_interval[led] = blink_interval_ms;
@@ -364,6 +375,15 @@ void tickHealthCheck() {
 
 void onSystemStatusUpdate() {
   sendSerialPacket(0x02, (uint8_t*)&system_status, sizeof(SystemStatus_t));
+}
+
+void debugPrint(const char* fmt, ...) {
+  char buf[64];
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(buf, sizeof(buf), fmt, args);
+  va_end(args);
+  sendSerialPacket(0x10, (const uint8_t*)buf, strlen(buf));
 }
 
 #endif
