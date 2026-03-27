@@ -3,7 +3,7 @@ from raspberry_utils.system_status import SystemStatus, system_status
 import struct
 from typing import Sequence
 
-uart = UART('/dev/ttyACM0', 115200)
+uart = None
 
 COMMAND_SET_SERVO_POS = 0x01
 COMMAND_SYSTEM_STATUS_UPDATE_SYNC = 0x02
@@ -39,6 +39,8 @@ def onDebugPrint(data: bytes):
     print(f"[Arduino] {data.decode('ascii', errors='replace')}")
 
 def init():
+    global uart
+    uart = UART('/dev/ttyACM0', 115200)
     uart.register_queue(COMMAND_SET_SERVO_POS)
     uart.register_handler(COMMAND_SYSTEM_STATUS_UPDATE_SYNC, onSystemStatusUpdate)
     uart.register_handler(COMMAND_DEBUG_PRINT, onDebugPrint)

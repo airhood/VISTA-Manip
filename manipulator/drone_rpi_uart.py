@@ -1,6 +1,6 @@
 from raspberry_utils.uart import UART
 
-uart = UART('/dev/ttyAMA3', 115200)
+uart = None
 
 COMMAND_DEBUG_PRINT = 0x10
 COMMAND_TEST = 0xFF
@@ -23,6 +23,8 @@ def onDebugPrint(data: bytes):
     print(f"[Arduino] {data.decode('ascii', errors='replace')}")
 
 def init():
+    global uart
+    uart = UART('/dev/ttyAMA3', 115200)
     uart.register_handler(COMMAND_DEBUG_PRINT, onDebugPrint)
     uart.register_queue(COMMAND_TEST)
 
