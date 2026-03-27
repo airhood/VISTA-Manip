@@ -3,7 +3,7 @@ from raspberry_utils.system_status import SystemStatus, system_status
 import struct
 from typing import Sequence
 
-uart = UART('/dev/ttyAMA2', 115200)
+uart = UART('/dev/ttyUSB0', 115200)
 
 COMMAND_SET_SERVO_POS = 0x01
 COMMAND_SYSTEM_STATUS_UPDATE_SYNC = 0x02
