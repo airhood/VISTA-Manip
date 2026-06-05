@@ -3,21 +3,23 @@
 #include <Arduino.h>
 #include <DynamixelShield.h>
 
-#if defined(ARDUINO_AVR_UNO) || defined(ARDUINO_AVR_MEGA2560)
-  #include <SoftwareSerial.h>
-  SoftwareSerial soft_serial(7, 8); // DYNAMIXELShield UART RX/TX
-  #define SERIAL soft_serial
-#elif defined(ARDUINO_SAM_DUE) || defined(ARDUINO_SAM_ZERO)
-  #define SERIAL SerialUSB    
-#else
-  #define SERIAL Serial
-#endif
+// #if defined(ARDUINO_AVR_UNO) || defined(ARDUINO_AVR_MEGA2560)
+//   #include <SoftwareSerial.h>
+//   SoftwareSerial soft_serial(7, 8); // DYNAMIXELShield UART RX/TX
+//   #define SERIAL soft_serial
+// #elif defined(ARDUINO_SAM_DUE) || defined(ARDUINO_SAM_ZERO)
+//   #define SERIAL SerialUSB
+// #else
+//   #define SERIAL Serial
+// #endif
 
-#undef SERIAL
 #define SERIAL Serial
 
+#define DXL_MEGA_SERIAL Serial3
+#define DXL_MEGA_DIR_PIN 2
 
-// #define ENABLE_DYNAMIXEL
+
+#define ENABLE_DYNAMIXEL
 
 enum StatusLED { RED, YELLOW, GREEN, BLUE };
 enum LEDState { OFF, ON, BLINK };
@@ -60,11 +62,14 @@ sw_data_t sw_data[NUM_DXL];
 DYNAMIXEL::InfoSyncWriteInst_t sw_infos;
 DYNAMIXEL::XELInfoSyncWrite_t info_xels_sw[NUM_DXL];
 
-DynamixelShield dxl;
+DynamixelShield dxl(DXL_MEGA_SERIAL, DXL_MEGA_DIR_PIN);
 
 using namespace ControlTableItem;
 
-int32_t servo_positions[NUM_SERVOS] = {1024, 1024, 1024, 1024, 1024, 1024}; // 0 ~ 4095
+int32_t servo_positions[NUM_SERVOS] = {2048, 2048, 2048, 2048, 2048, 2048}; // 0 ~ 4095
+
+int32_t dxl_profile_acceleration = 7;
+int32_t dxl_profile_velocity = 70;
 
 
 const int RED_PIN    = 10;
@@ -102,7 +107,7 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW);
 
-  SERIAL.begin(9600);
+  SERIAL.begin(115200);
 
   pinMode(RED_PIN, OUTPUT);
   pinMode(YELLOW_PIN, OUTPUT);
@@ -115,7 +120,7 @@ void setup() {
   digitalWrite(BLUE_PIN, LOW);
 
 #ifdef ENABLE_DYNAMIXEL
-  dxl.begin(57600);
+  dxl.begin(1000000);
   dxl.setPortProtocolVersion(DXL_PROTOCOL_VERSION);
 
   for (int i = 0; i < NUM_DXL; i++) {
@@ -128,6 +133,11 @@ void setup() {
 
       dxl.torqueOff(id);
       dxl.setOperatingMode(id, OP_POSITION);
+
+      dxl.writeControlTableItem(PROFILE_ACCELERATION, id, dxl_profile_acceleration);
+      dxl.writeControlTableItem(PROFILE_VELOCITY, id, dxl_profile_velocity);
+
+      dxl.torqueOn(id);
     } else {
       debugPrint("Dynamixel ID ");
       debugPrint("%d", id);
@@ -151,7 +161,8 @@ void setup() {
   }
   sr_infos.is_info_changed = true;
 
-  sw_infos.packet.p_buf = nullptr;
+  sw_infos.packet.p_buf = user_pkt_buf;
+  sw_infos.packet.buf_capacity = user_pkt_buf_cap;
   sw_infos.packet.is_completed = false;
   sw_infos.addr = SW_START_ADDR;
   sw_infos.addr_length = SW_ADDR_LEN;
@@ -170,12 +181,8 @@ void setup() {
 uint16_t dxl_tick = 0;
 
 void loop() {
-  Serial.println("hello world\n");
-  SERIAL.println("hello world\n");
-  debugPrint("hello world!\n");
 
   if (SERIAL.available()) {
-    Serial.println("try parse");
     parseSerialPacket();
   }
 
@@ -229,10 +236,12 @@ void loop() {
     // }
   
     for (uint8_t i = 0; i < NUM_DXL; i++) {
+      int32_t current_pos = (int32_t)dxl.getPresentPosition(DXL_ID_LIST[i], UNIT_RAW);
+
       debugPrint("ID ");
       debugPrint("%d", DXL_ID_LIST[i]);
       debugPrint(": ");
-      debugPrint("%d\n", dxl.getPresentPosition(DXL_ID_LIST[i]));
+      debugPrint("%ld\n", current_pos);
     }
     
     debugPrint("=======================================================\n");
