@@ -9,6 +9,7 @@ COMMAND_SET_SERVO_POS = 0x01
 COMMAND_SYSTEM_STATUS_UPDATE_SYNC = 0x02
 COMMAND_SYSTEM_STATUS_UPDATE_REQUEST = 0x03
 COMMAND_DEBUG_PRINT = 0x10
+COMMAND_DEBUG_SET = 0x11
 COMMAND_TEST = 0xFF
 
 def sendPacket(command: int, data: bytes) -> None:
@@ -17,8 +18,14 @@ def sendPacket(command: int, data: bytes) -> None:
 
 def send_servo_positions(positions: Sequence[int]) -> None:
     """Send servo positions to arduino. Non-blocking."""
+    if len(positions) != 6:
+        raise ValueError(f'Invalid servo positions. Position sequence length mismatch: {len(positions)}')
     data = b''.join(struct.pack('<H', p) for p in positions)
     uart.send_packet(0x01, data)
+
+def debug_set(state: bool) -> None:
+    data = struct.pack('?', state)
+    uart.send_packet(COMMAND_DEBUG_SET, data)
 
 def test() -> bool:
     """Send health check to arduino and wait for response. Blocking."""

@@ -102,6 +102,8 @@ typedef struct SystemStatus {
 
 SystemStatus_t system_status;
 
+bool is_debug_enabled = false;
+
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
@@ -310,6 +312,11 @@ void handleCommand(uint8_t command, uint8_t* data, uint8_t data_len) {
         uint8_t status = data[0];
       }
       break;
+    case 0x11: // debug set
+      {
+        uint8_t debug = data[0];
+        is_debug_enabled = (debug != 0);
+      }
     case 0xFE: // health check reply
       {
         health_check_request = 0;
@@ -387,6 +394,8 @@ void onSystemStatusUpdate() {
 }
 
 void debugPrint(const char* fmt, ...) {
+  if (!is_debug_enabled) return;
+
   char buf[64];
   va_list args;
   va_start(args, fmt);
