@@ -1,4 +1,4 @@
-import servo
+from . import servo
 
 def cli_control():
     while True:
