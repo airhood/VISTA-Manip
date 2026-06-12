@@ -1,4 +1,4 @@
-import arduino_uart
+from . import arduino_uart
 from typing import Sequence
 
 servo_positions = [2048, 2048, 2048, 2048, 2048, 2048]
