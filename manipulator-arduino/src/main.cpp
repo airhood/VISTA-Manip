@@ -66,7 +66,7 @@ DynamixelShield dxl(DXL_MEGA_SERIAL, DXL_MEGA_DIR_PIN);
 
 using namespace ControlTableItem;
 
-int32_t servo_positions[NUM_SERVOS] = {2048, 2048, 2048, 2048, 2048, 0}; // 0 ~ 4095
+int32_t servo_positions[NUM_SERVOS] = {2048, 1300, 2250, 2500, 2048, 0}; // 0 ~ 4095
 
 int32_t dxl_profile_acceleration = 7;
 int32_t dxl_profile_velocity = 70;
