@@ -66,7 +66,7 @@ DynamixelShield dxl(DXL_MEGA_SERIAL, DXL_MEGA_DIR_PIN);
 
 using namespace ControlTableItem;
 
-int32_t servo_positions[NUM_SERVOS] = {2048, 1300, 2250, 2500, 2048, 0}; // 0 ~ 4095
+int32_t servo_positions[NUM_SERVOS] = {2048, 1300, 2250, 2500, 2048, 2048}; // 0 ~ 4095
 
 int32_t dxl_profile_acceleration = 7;
 int32_t dxl_profile_velocity = 70;
@@ -134,9 +134,10 @@ void setup() {
       dxl.torqueOff(id);
 
       if (id == 6) {
-        dxl.setOperatingMode(id, OP_CURRENT);
-
+        dxl.setOperatingMode(id, OP_CURRENT_BASED_POSITION);
+        
         dxl.writeControlTableItem(CURRENT_LIMIT, id, 100);
+        dxl.setGoalCurrent(id, 15, UNIT_RAW);
       } else {
         dxl.setOperatingMode(id, OP_POSITION);
   
@@ -160,7 +161,6 @@ void setup() {
   sr_infos.xel_count = 0;
 
   for (int i = 0; i < NUM_DXL; i++) {
-    if (DXL_ID_LIST[i] == 6) continue;
     info_xels_sr[i].id = DXL_ID_LIST[i];
     info_xels_sr[i].p_recv_buf = (uint8_t*)&sr_data[i];
     sr_infos.xel_count++;
@@ -222,10 +222,6 @@ void loop() {
       debugPrint("[SyncWrite] Fail, Lib error code: ");
       debugPrint("%ld", dxl.getLastLibErrCode());
     }
-
-    int16_t gripper_current = (int16_t)servo_positions[5];
-    dxl.setGoalCurrent(6, gripper_current, UNIT_RAW);
-    debugPrint("  ID: 6 (Gripper)\n\t Goal Current: %d\n", gripper_current);
 
     debugPrint("\n");
   
