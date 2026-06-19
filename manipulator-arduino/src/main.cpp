@@ -135,6 +135,8 @@ void setup() {
 
       if (id == 6) {
         dxl.setOperatingMode(id, OP_CURRENT);
+
+        dxl.writeControlTableItem(CURRENT_LIMIT, id, 100);
       } else {
         dxl.setOperatingMode(id, OP_POSITION);
   
