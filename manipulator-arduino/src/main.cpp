@@ -66,7 +66,7 @@ DynamixelShield dxl(DXL_MEGA_SERIAL, DXL_MEGA_DIR_PIN);
 
 using namespace ControlTableItem;
 
-int32_t servo_positions[NUM_SERVOS] = {2048, 2048, 2048, 2048, 2048, 2048}; // 0 ~ 4095
+int32_t servo_positions[NUM_SERVOS] = {2048, 2048, 2048, 2048, 2048, 0}; // 0 ~ 4095
 
 int32_t dxl_profile_acceleration = 7;
 int32_t dxl_profile_velocity = 70;
@@ -129,21 +129,22 @@ void setup() {
     uint8_t id = DXL_ID_LIST[i];
 
     if (dxl.ping(id)) {
-      debugPrint("Dynamixel ID ");
-      debugPrint("%d", id);
-      debugPrint(" found!\n");
+      debugPrint("Dynamixel ID %d found!\n", id);
 
       dxl.torqueOff(id);
-      dxl.setOperatingMode(id, OP_POSITION);
 
-      dxl.writeControlTableItem(PROFILE_ACCELERATION, id, dxl_profile_acceleration);
-      dxl.writeControlTableItem(PROFILE_VELOCITY, id, dxl_profile_velocity);
+      if (id == 6) {
+        dxl.setOperatingMode(id, OP_CURRENT);
+      } else {
+        dxl.setOperatingMode(id, OP_POSITION);
+  
+        dxl.writeControlTableItem(PROFILE_ACCELERATION, id, dxl_profile_acceleration);
+        dxl.writeControlTableItem(PROFILE_VELOCITY, id, dxl_profile_velocity);
+      }
 
       dxl.torqueOn(id);
     } else {
-      debugPrint("Dynamixel ID ");
-      debugPrint("%d", id);
-      debugPrint(" not responding!\n");
+      debugPrint("Dynamixel ID %d not responding!\n", id);
     }
   }
   dxl.torqueOn(DXL_BROADCAST_ID);
@@ -157,6 +158,7 @@ void setup() {
   sr_infos.xel_count = 0;
 
   for (int i = 0; i < NUM_DXL; i++) {
+    if (DXL_ID_LIST[i] == 6) continue;
     info_xels_sr[i].id = DXL_ID_LIST[i];
     info_xels_sr[i].p_recv_buf = (uint8_t*)&sr_data[i];
     sr_infos.xel_count++;
@@ -197,7 +199,7 @@ void loop() {
     static uint32_t tick_count = 0;
     uint8_t recv_cnt;
   
-    for (int i = 0; i < NUM_DXL; i++) {
+    for (int i = 0; i < sw_infos.xel_count; i++) {
       sw_data[i].goal_position = servo_positions[i];
     }
   
@@ -218,6 +220,11 @@ void loop() {
       debugPrint("[SyncWrite] Fail, Lib error code: ");
       debugPrint("%ld", dxl.getLastLibErrCode());
     }
+
+    int16_t gripper_current = (int16_t)servo_positions[5];
+    dxl.setGoalCurrent(6, gripper_current, UNIT_RAW);
+    debugPrint("  ID: 6 (Gripper)\n\t Goal Current: %d\n", gripper_current);
+
     debugPrint("\n");
   
     // recv_cnt = dxl.syncRead(&sr_infos);

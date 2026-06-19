@@ -1,7 +1,7 @@
 from . import arduino_uart
 from typing import Sequence
 
-servo_positions = [2048, 2048, 2048, 2048, 2048, 2048]
+servo_positions = [2048, 2048, 2048, 2048, 2048, 0]
 
 def set_servo(servo_idx: int, position: int):
     servo_positions[servo_idx] = position
